@@ -1,6 +1,8 @@
 import type { College, FamilyMember, Rating, RatingCategory, ScorecardResult } from '../types'
 
-const BASE = '/api'
+// In dev, Vite proxies /api → localhost:3001.
+// In production (Vercel), set VITE_API_URL to your Railway backend URL.
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
