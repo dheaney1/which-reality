@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import type { College, FamilyMember } from '../types'
+import NotesTab from '../components/NotesTab'
+import RatingsTab from '../components/RatingsTab'
+import StatsTab from '../components/StatsTab'
+import type { AdmissionsData, College, FamilyMember, InstitutionalMetrics } from '../types'
 
 type Tab = 'overview' | 'notes' | 'ratings' | 'stats'
 
@@ -12,22 +15,40 @@ interface Props {
 const INPUT_CLS =
   'w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
-export default function CollegeDetail({ activeMember: _activeMember }: Props) {
+export default function CollegeDetail({ activeMember }: Props) {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [college, setCollege] = useState<College | null>(null)
+  const [members, setMembers] = useState<FamilyMember[]>([])
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!id) return
-    api.colleges
-      .get(id)
-      .then(setCollege)
+    Promise.all([api.colleges.get(id), api.members.list()])
+      .then(([c, m]) => { setCollege(c); setMembers(m) })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
+
+  async function updateField(field: string, value: unknown) {
+    if (!college) return
+    const updated = await api.colleges.update(college.id, { [field]: value })
+    setCollege((prev) => prev ? { ...prev, ...updated } : prev)
+  }
+
+  async function updateMetrics(data: Partial<InstitutionalMetrics>) {
+    if (!college) return
+    const updated = await api.metrics.update(college.id, data)
+    setCollege((prev) => prev ? { ...prev, institutional_metrics: updated } : prev)
+  }
+
+  async function updateAdmissions(data: Partial<AdmissionsData>) {
+    if (!college) return
+    const updated = await api.admissions.update(college.id, data)
+    setCollege((prev) => prev ? { ...prev, admissions_data: updated } : prev)
+  }
 
   async function handleDelete() {
     if (!college) return
@@ -40,12 +61,6 @@ export default function CollegeDetail({ activeMember: _activeMember }: Props) {
       alert('Failed to delete college.')
       setDeleting(false)
     }
-  }
-
-  async function updateField(field: string, value: unknown) {
-    if (!college) return
-    const updated = await api.colleges.update(college.id, { [field]: value })
-    setCollege(updated)
   }
 
   if (loading) {
@@ -78,9 +93,7 @@ export default function CollegeDetail({ activeMember: _activeMember }: Props) {
             src={college.logo_url}
             alt={college.name}
             className="h-20 w-auto object-contain drop-shadow-md"
-            onError={(e) => {
-              ;(e.target as HTMLImageElement).style.display = 'none'
-            }}
+            onError={(e) => { ;(e.target as HTMLImageElement).style.display = 'none' }}
           />
         ) : (
           <span className="text-white text-5xl font-black opacity-40">{college.name[0]}</span>
@@ -94,9 +107,7 @@ export default function CollegeDetail({ activeMember: _activeMember }: Props) {
             <p className="text-sm text-gray-500">
               Visited{' '}
               {new Date(college.visit_date + 'T00:00:00').toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
+                month: 'long', day: 'numeric', year: 'numeric',
               })}
             </p>
           )}
@@ -126,17 +137,17 @@ export default function CollegeDetail({ activeMember: _activeMember }: Props) {
         ))}
       </div>
 
-      {tab === 'overview' && (
-        <OverviewTab college={college} onUpdate={updateField} />
-      )}
-      {tab === 'notes' && (
-        <p className="text-gray-400 text-sm">Notes — coming in Phase 2</p>
-      )}
+      {tab === 'overview' && <OverviewTab college={college} onUpdate={updateField} />}
+      {tab === 'notes' && <NotesTab college={college} onUpdate={updateField} />}
       {tab === 'ratings' && (
-        <p className="text-gray-400 text-sm">Ratings — coming in Phase 2</p>
+        <RatingsTab college={college} activeMember={activeMember} members={members} />
       )}
       {tab === 'stats' && (
-        <p className="text-gray-400 text-sm">Stats — coming in Phase 2</p>
+        <StatsTab
+          college={college}
+          onUpdateMetrics={updateMetrics}
+          onUpdateAdmissions={updateAdmissions}
+        />
       )}
     </div>
   )
@@ -160,7 +171,6 @@ function OverviewTab({
           {college.setting}
         </span>
       )}
-
       <div className="flex flex-wrap gap-2">
         {college.official_website_url && (
           <a
@@ -187,54 +197,31 @@ function OverviewTab({
           </a>
         )}
       </div>
-
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Visit Date
-        </label>
-        <input
-          type="date"
-          value={visitDate}
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Visit Date</label>
+        <input type="date" value={visitDate}
           onChange={(e) => setVisitDate(e.target.value)}
           onBlur={() => onUpdate('visit_date', visitDate || null)}
-          className={INPUT_CLS}
-        />
+          className={INPUT_CLS} />
       </div>
-
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Tour Guides
-        </label>
-        <input
-          type="text"
-          value={tourGuides}
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tour Guides</label>
+        <input type="text" value={tourGuides}
           onChange={(e) => setTourGuides(e.target.value)}
           onBlur={() =>
-            onUpdate(
-              'tour_guide_names',
-              tourGuides
-                .split(',')
-                .map((s) => s.trim())
-                .filter(Boolean)
-            )
+            onUpdate('tour_guide_names', tourGuides.split(',').map((s) => s.trim()).filter(Boolean))
           }
           placeholder="Names of tour guides"
-          className={INPUT_CLS}
-        />
+          className={INPUT_CLS} />
       </div>
-
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Description
-        </label>
-        <textarea
-          value={description}
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Description</label>
+        <textarea value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => onUpdate('description', description || null)}
           rows={4}
           placeholder="General impressions from the visit…"
-          className={`${INPUT_CLS} resize-none`}
-        />
+          className={`${INPUT_CLS} resize-none`} />
       </div>
     </div>
   )

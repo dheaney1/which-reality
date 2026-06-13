@@ -1,4 +1,12 @@
-import type { College, FamilyMember, Rating, RatingCategory, ScorecardResult } from '../types'
+import type {
+  AdmissionsData,
+  College,
+  FamilyMember,
+  InstitutionalMetrics,
+  Rating,
+  RatingCategory,
+  ScorecardResult,
+} from '../types'
 
 const BASE = '/api'
 
@@ -44,5 +52,19 @@ export const api = {
       category_id: string
       score: number
     }) => req<Rating>('/ratings', { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  metrics: {
+    update: (collegeId: string, data: object) =>
+      req<InstitutionalMetrics>(`/metrics/${collegeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
+  admissions: {
+    update: (collegeId: string, data: object) =>
+      req<AdmissionsData>(`/admissions/${collegeId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   },
 }
