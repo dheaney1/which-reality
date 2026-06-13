@@ -1,8 +1,1 @@
-[build]
-  builder = "NIXPACKS"
-  buildCommand = "cd server && npm install && npm run build"
-
-[deploy]
-  startCommand = "cd server && node dist/index.js"
-  healthcheckPath = "/api/members"
-  restartPolicyType = "ON_FAILURE"
+# Railway no longer used — backend is Vercel serverless functions (api/ folder)
